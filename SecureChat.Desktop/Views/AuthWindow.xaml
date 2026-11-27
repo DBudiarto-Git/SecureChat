@@ -1,0 +1,89 @@
+﻿<Window x:Class="SecureChat.Desktop.Views.AuthWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecureChat.Desktop.ViewModels"
+        Title="SecureChat - Authentifizierung" Height="450" Width="350" FocusManager.FocusedElement="{Binding ElementName=EmailInput}"
+        WindowStartupLocation="CenterScreen" Background="#F5F5F5">
+
+  <!--<Window.DataContext>
+    <vm:AuthViewModel />
+  </Window.DataContext>-->
+
+  <Grid Margin="30">
+    <StackPanel VerticalAlignment="Center">
+      <!-- Titel -->
+      <TextBlock Text="🔒 SECURE CHAT" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,20" Foreground="#2C3E50"/>
+
+      <!-- Feld für Anzeigename (Wird bei Login eingeklappt) -->
+      <StackPanel x:Name="RegisterFields" Margin="0,0,0,10">
+        <StackPanel.Style>
+          <Style TargetType="StackPanel">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsLoginView}" Value="False">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </StackPanel.Style>
+        <TextBlock Text="Anzeigename:" Margin="0,5,0,2"/>
+        <TextBox Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Height="25"/>
+      </StackPanel>
+
+      <!-- E-Mail Feld -->
+      <TextBlock Text="E-Mail Adresse:" Margin="0,5,0,2"/>
+      <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" Height="25" Margin="0,0,0,10" Focusable="True"/>
+
+      <!-- Passwort Feld -->
+      <TextBlock Text="Passwort:" Margin="0,5,0,2"/>
+      <PasswordBox x:Name="TxtPassword" Height="25" Margin="0,0,0,15"/>
+
+      <!-- Absende Button (Perfekt angepasst für das 2006-Schema) -->
+      <Button Command="{Binding SubmitCommand}"
+              CommandParameter="{Binding ElementName=TxtPassword}" IsDefault="True"
+              Height="30" Background="#2ECC71" Foreground="White" FontWeight="Bold" BorderThickness="0">
+        <Button.Style>
+          <Style TargetType="Button">
+            <!-- Standard-Inhalt sicher als Setter-Value deklariert -->
+            <Setter Property="Content">
+              <Setter.Value>Einloggen</Setter.Value>
+            </Setter>
+            <Style.Triggers>
+              <!-- Wenn IsLoginView False ist, schaltet der Trigger auf Registrieren um -->
+              <DataTrigger Binding="{Binding IsLoginView}" Value="False">
+                <Setter Property="Content">
+                  <Setter.Value>Registrieren</Setter.Value>
+                </Setter>
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Button.Style>
+      </Button>
+
+      <!-- Status Anzeige -->
+      <TextBlock Text="{Binding StatusMessage}" Foreground="#E74C3C" HorizontalAlignment="Center" Margin="0,10,0,10" TextWrapping="Wrap" Height="40"/>
+
+      <!-- Wechsel-Link (Absolut absturzsicher über XAML-Trigger gesteuert) -->
+      <TextBlock Margin="0,5,0,0" HorizontalAlignment="Center">
+        <Hyperlink Command="{Binding ToggleViewCommand}">
+          <Run>
+            <Run.Style>
+              <Style TargetType="Run">
+                <!-- Standard-Text, wenn IsLoginView TRUE ist -->
+                <Setter Property="Text" Value="Noch kein Konto? Hier registrieren" />
+                <Style.Triggers>
+                  <!-- Wenn IsLoginView FALSE ist, schaltet der Trigger auf den Login-Text um -->
+                  <DataTrigger Binding="{Binding IsLoginView}" Value="False">
+                    <Setter Property="Text" Value="Bereits registriert? Zum Login" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Run.Style>
+          </Run>
+        </Hyperlink>
+      </TextBlock>
+    </StackPanel>
+  </Grid>
+</Window>
+
+

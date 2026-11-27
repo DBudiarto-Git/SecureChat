@@ -1,0 +1,1306 @@
+﻿<Window x:Class="SecureChat.Desktop.Views.ChatWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" 
+        xmlns:local="clr-namespace:SecureChat.Desktop" 
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" 
+        Title="SecureChat - E2EE Messenger" 
+        Height="650" 
+        Width="950" 
+        MinWidth="800" 
+        MinHeight="550"
+        WindowStartupLocation="CenterScreen" 
+        Background="#ECEFF1">
+
+    <!--  HIER DIE RESSOURCEN DIREKT UNTER DEM WINDOW-KOPF EINTRAGEN -->
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <local:BytesToUriConverter x:Key="BytesToUriConverter"/>
+        <!-- MODERNES, SCHMALES STYLE-TEMPLATE FÜR DEN SCROLLBALKEN -->
+        <Style TargetType="{x:Type ScrollBar}">
+            <Setter Property="Width" Value="6"/>
+            <!-- Hauchdünne Breite (6 Pixel) -->
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid x:Name="Bg" Background="Transparent">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true" IsEnabled="{TemplateBinding IsEnabled}">
+                                <Track.Thumb>
+                                    <!-- KORREKTUR: Wir nutzen das Template des Thumbs, um einen Border mit CornerRadius zu füttern -->
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                                <!-- Border versteht CornerRadius zu 100% fehlerfrei! -->
+                                                <Border Background="#BDC3C7" CornerRadius="3" BorderThickness="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 🌟 UNIVERSELLER KRYPTO-SLIDER-STYLE (Vollständig korrigiert ohne MyNotify-Fehler) -->
+        <Style x:Key="ModernMediaSlider" TargetType="Slider">
+            <Setter Property="Background" Value="#BDC3C7"/>
+            <!-- Hintergrund-Spur (Grau) -->
+            <Setter Property="Foreground" Value="#16A085"/>
+            <!-- Vordergrund-Spur (Grün) -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <!-- KORREKTUR: Das Grid kommt nun absolut rein und ohne Namespace-Fehler aus! -->
+                        <Grid>
+                            <!-- Die physische Spur des Reglers -->
+                            <Border x:Name="TrackBackground" Height="5" Background="{TemplateBinding Background}" CornerRadius="2.5" VerticalAlignment="Center"/>
+
+                            <!-- Der aktive (grüne) Bereich vor dem Regler -->
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate>
+                                                <Border Height="5" Background="{TemplateBinding Foreground}" CornerRadius="2.5" VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <!-- Der kleine Kreis (Zieh-Element) -->
+                                    <Thumb Width="12" Height="12" Cursor="Hand">
+                                        <Thumb.Template>
+                                            <ControlTemplate>
+                                                <Ellipse Fill="#16A085" Width="12" Height="12" Stroke="White" StrokeThickness="1.5">
+                                                    <Ellipse.Effect>
+                                                        <DropShadowEffect BlurRadius="3" Color="Black" Opacity="0.3" ShadowDepth="1"/>
+                                                    </Ellipse.Effect>
+                                                </Ellipse>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- Die Spalte selbst schaut nun einfach auf den Inhalt des Borders -->
+            <ColumnDefinition Width="Auto"/>
+            <!-- Rechte Hauptspalte nimmt den gesamten Rest -->
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ==================== LINKER BEREICH: SIDEBAR ==================== -->
+        <Border Grid.Column="0" Background="#2C3E50" Padding="10">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Width" Value="300"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSidebarMaximized}" Value="False">
+                            <Setter Property="Width" Value="85"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <!-- Zeile 0: Header / Hamburger -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Zeile 1: Suche -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Zeile 2: Die beiden Reiter-Buttons -->
+                    <RowDefinition Height="*"/>
+                    <!-- Zeile 3: KORREKT - Flexibler Raum für alle Listen -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Zeile 4: Eigene Profil-Info -->
+                </Grid.RowDefinitions>
+
+                <!-- Toggle Button (Hamburger) -->
+                <Button Grid.Row="0" Command="{Binding ToggleSidebarCommand}" Content="≡" 
+                        FontSize="20" Background="Transparent" Foreground="White" BorderThickness="0" 
+                        HorizontalAlignment="Right" Cursor="Hand" Margin="0,0,5,10"/>
+
+                <!-- Titel -->
+                <TextBlock Grid.Row="0" Text="💬 CHATS" Foreground="White" FontWeight="Bold" FontSize="16" Margin="10,5,0,10" HorizontalAlignment="Left">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSidebarMaximized}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <!-- Suchbereich & Gruppen-Erstellungs-Knopf -->
+                <Grid Grid.Row="1" Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Grid.Column="0" Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" Height="30" VerticalContentAlignment="Center" Padding="5,0,30,0"/>
+                    <Button Grid.Column="0" Content="🔍" Width="35" Height="30" Background="#34495E" BorderThickness="0" Foreground="White" HorizontalAlignment="Right"/>
+
+                    <!-- NEU: Gruppen-Erstellungsbutton (Verschwindet im Mini-Modus für Symmetrie) -->
+                    <Button Grid.Column="1" Command="{Binding CreateGroupCommand}" Content="➕ Gruppe" Height="30" Width="75" Margin="5,0,0,0" Background="#2980B9" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSidebarMaximized}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+
+                <!-- REITER-BUTTONS & INLINE-GRUPPEN-ERSTELLUNG (Zeile 2) -->
+                <Grid Grid.Row="2" Margin="0,5,0,10">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSearching}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <!-- Die 3 Tab-Buttons -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- Das neue Inline-Eingabefeld -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Die 3 bekannten Tabs (Spalten 0, 1, 2) -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Command="{Binding SwitchTabCommand}" CommandParameter="Friends" Content="Freunde" Height="30" Background="#34495E" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        <Button Grid.Column="1" Command="{Binding SwitchTabCommand}" CommandParameter="Invites" Content="Invites" Height="30" Background="#16A085" Foreground="White" BorderThickness="0" Margin="3,0,0,0" Cursor="Hand"/>
+                        <Button Grid.Column="2" Command="{Binding SwitchTabCommand}" CommandParameter="Groups" Content="Gruppen" Height="30" Background="#2980B9" Foreground="White" BorderThickness="0" Margin="3,0,0,0" Cursor="Hand"/>
+                    </Grid>
+
+                    <!-- NEU: Das moderne Inline-Eingabefeld (Blendet sich ein, wenn IsCreatingGroup TRUE ist) -->
+                    <Grid Grid.Row="1" Margin="0,10,0,0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCreatingGroup}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Text="{Binding NewGroupName, UpdateSourceTrigger=PropertyChanged}" Height="28" VerticalContentAlignment="Center" Padding="5,0,5,0" Tag="Gruppenname..."/>
+                        <!-- Bestätigen (Häkchen) -->
+                        <Button Grid.Column="1" Command="{Binding ConfirmCreateGroupCommand}" Content="✓" Width="28" Height="28" Background="#2ECC71" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="5,0,0,0" Cursor="Hand"/>
+                        <!-- Abbrechen (Kreuz) -->
+                        <Button Grid.Column="2" Command="{Binding SwitchTabCommand}" CommandParameter="Groups" Content="✕" Width="28" Height="28" Background="#E74C3C" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="3,0,0,0" Cursor="Hand"/>
+                    </Grid>
+                </Grid>
+
+                <!-- ==================== LISTEN-ZENTRALE IN ZEILE 3 ==================== -->
+
+                <!-- LISTE A: MEINE FREUNDE (Reagiert jetzt korrekt auf ActiveTab = Friends) -->
+                <ListBox Grid.Row="3" ItemsSource="{Binding MyFriends}" SelectedItem="{Binding SelectedContact}"
+                         Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
+                            <!-- Standardmäßig ausgeblendet -->
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <!-- Schaltet sich NUR ein, wenn der Reiter "Friends" aktiv ist und KEINE Suche läuft -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding ActiveTab}" Value="Friends"/>
+                                        <Condition Binding="{Binding IsSearching}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#34495E" CornerRadius="5" Padding="8" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Grid.Column="0" Margin="0,0,10,0" HorizontalAlignment="Center">
+                                        <Ellipse Width="35" Height="35" Fill="#2ECC71"/>
+                                        <TextBlock Text="{Binding Initials}" Foreground="White" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="12"/>
+                                        <Ellipse Width="35" Height="35">
+                                            <Ellipse.Fill>
+                                                <ImageBrush ImageSource="{Binding AvatarImage}" Stretch="UniformToFill"/>
+                                            </Ellipse.Fill>
+                                        </Ellipse>
+                                        <Ellipse Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Stroke="#34495E" StrokeThickness="1.5">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Fill" Value="#95A5A6"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                                            <Setter Property="Fill" Value="#2ECC71"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                    </Grid>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.IsSidebarMaximized, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="White" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Email}" Foreground="#BDC3C7" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    
+                                    <!-- 🔴 DER KRYPTO-BENACHRICHTIGUNGS-KREIS -->
+                                    <Border Background="#FF4A4A" 
+                                        CornerRadius="10" 
+                                        MinWidth="18" 
+                                        Height="18" 
+                                        Margin="8,0,0,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <!-- Standardmäßig unsichtbar, wenn keine ungelesenen Nachrichten da sind -->
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasUnread}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding UnreadCount}" 
+                                            Foreground="White" 
+                                            FontSize="10" 
+                                            FontWeight="Bold" 
+                                            HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"
+                                            Margin="4,0,4,0"/>
+                                    </Border>
+
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- LISTE B: OFFENE ANFRAGEN (Reagiert jetzt korrekt auf ActiveTab = Invites) -->
+                <ListBox Grid.Row="3" ItemsSource="{Binding PendingInvites}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <!-- Schaltet sich ein, wenn der Reiter "Invites" aktiv ist und keine Suche läuft -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding ActiveTab}" Value="Invites"/>
+                                        <Condition Binding="{Binding IsSearching}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#D35400" CornerRadius="5" Padding="8" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding SenderDisplayName}" Foreground="White" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding SenderEmail}" Foreground="#FEDBB5" FontSize="11"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Command="{Binding DataContext.AcceptInviteCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding FriendshipId}" Content="✓" Width="25" Height="25" Background="#2ECC71" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,5,0"/>
+                                        <Button Command="{Binding DataContext.RejectInviteCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding FriendshipId}" Content="✕" Width="25" Height="25" Background="#C0392B" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- LISTE C: KRYPTO-GRUPPEN --><!--
+                <ListBox Grid.Row="3" ItemsSource="{Binding MyGroups}" SelectedItem="{Binding SelectedGroup}"
+                         Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                --><!-- Sichtbar, wenn der Gruppen-Reiter aktiv geschaltet wird --><!--
+                                <DataTrigger Binding="{Binding ActiveTab}" Value="Groups">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#2980B9" CornerRadius="5" Padding="8" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    --><!-- Gruppen-Symbol --><!--
+                                    <Grid Grid.Column="0" Margin="0,0,10,0">
+                                        <Ellipse Width="35" Height="35" Fill="#34495E"/>
+                                        <TextBlock Text="👥" Foreground="White" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    </Grid>
+
+                                    --><!-- Gruppen-Texte (Einklappbar) --><!--
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.IsSidebarMaximized, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="{Binding GroupName}" Foreground="White" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="Ende-zu-Ende verschlüsselt" Foreground="#E8F8F5" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    --><!-- 🔴 DER KRYPTO-BENACHRICHTIGUNGS-KREIS --><!--
+                                    <Border Background="#FF4A4A" 
+                                        CornerRadius="10" 
+                                        MinWidth="18" 
+                                        Height="18" 
+                                        Margin="8,0,0,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                --><!-- Standardmäßig unsichtbar, wenn keine ungelesenen Nachrichten da sind --><!--
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    --><!-- 🌟 Fix: 'true' kleingeschrieben sorgt für fehlerfreies Binding bei boolschen Werten --><!--
+                                                    <DataTrigger Binding="{Binding HasUnread}" Value="true">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding UnreadCount}" 
+                                            Foreground="White" 
+                                            FontSize="10" 
+                                            FontWeight="Bold" 
+                                            HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"
+                                            Margin="4,0,4,0"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>-->
+
+                <!-- LISTE C: KRYPTO-GRUPPEN -->
+                <ListBox Grid.Row="3" ItemsSource="{Binding MyGroups}" SelectedItem="{Binding SelectedGroup}" SelectionChanged="GroupListBox_SelectionChanged" 
+         Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <!-- Sichtbar, wenn der Gruppen-Reiter aktiv geschaltet wird -->
+                                <DataTrigger Binding="{Binding ActiveTab}" Value="Groups">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <!-- Background steht auf der Border, IsHitTestVisible="True" stellt sicher, dass es klickbar bleibt -->
+                            <Border Background="#2980B9" CornerRadius="5" Padding="8" Margin="0,0,0,5">
+                                <!-- 🌟 FIX: Drei klar definierte Spalten, damit sich nichts überlagert -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- 1. Gruppen-Symbol -->
+                                    <Grid Grid.Column="0" Margin="0,0,10,0">
+                                        <Ellipse Width="35" Height="35" Fill="#34495E"/>
+                                        <TextBlock Text="👥" Foreground="White" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- 2. Gruppen-Texte (Einklappbar) -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.IsSidebarMaximized, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="{Binding GroupName}" Foreground="White" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="Ende-zu-Ende verschlüsselt" Foreground="#E8F8F5" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <!-- 3. 🔴 DER KRYPTO-BENACHRICHTIGUNGS-KREIS -->
+                                    <!-- 🌟 FIX: Liegt jetzt sauber in Grid.Column="2" und blockiert keine mittigen/linken Klicks mehr! -->
+                                    <Border Grid.Column="2"
+                            Background="#FF4A4A" 
+                            CornerRadius="10" 
+                            MinWidth="18" 
+                            Height="18" 
+                            Margin="8,0,0,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <!-- Standardmäßig unsichtbar, wenn keine ungelesenen Nachrichten da sind -->
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasUnread}" Value="true">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding UnreadCount}" 
+                            Foreground="White" 
+                            FontSize="10" 
+                            FontWeight="Bold" 
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center"
+                            Margin="4,0,4,0"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- LISTE D: LIVE-SUCHERGEBNISSE (Öffnet sich bei aktiver Suche) -->
+                <ListBox Grid.Row="3" ItemsSource="{Binding AvailableUsers}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSearching}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#34495E" CornerRadius="5" Padding="6,8,6,8" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="85"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,5,0">
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="White" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Email}" Foreground="#BDC3C7" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" 
+                                            Height="25" VerticalAlignment="Center" HorizontalAlignment="Stretch" BorderThickness="0" FontWeight="Bold">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <!-- 1. STANDARD-ZUSTAND: Benutzer ist ein Fremder im System -->
+                                                <Setter Property="Content" Value="Einladen ➕"/>
+                                                <Setter Property="Background" Value="#3498DB"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                                <Setter Property="Command" Value="{Binding DataContext.SendInviteCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                                <Setter Property="CommandParameter" Value="{Binding Email}"/>
+                                                <Setter Property="Cursor" Value="Hand"/>
+
+                                                <Style.Triggers>
+                                                    <!-- 2. ZUSTAND: Ein echter Freund, wenn wir uns im NORMALEN Freunde-Tab befinden -->
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding IsFriend}" Value="True"/>
+                                                            <Condition Binding="{Binding DataContext.IsGroupChatActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="False"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Content" Value="✓ Kontakt"/>
+                                                        <Setter Property="Background" Value="#27AE60"/>
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                        <Setter Property="Command" Value="{x:Null}"/>
+                                                        <Setter Property="Cursor" Value="Arrow"/>
+                                                    </MultiDataTrigger>
+
+                                                    <!-- 3. ZUSTAND: Ein echter Freund, der JETZT in die Gruppe eingeladen werden kann -->
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding IsFriend}" Value="True"/>
+                                                            <Condition Binding="{Binding DataContext.IsGroupChatActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                                                            <Condition Binding="{Binding IsAlreadyInGroup}" Value="False"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Content" Value="Gruppe ➕"/>
+                                                        <Setter Property="Background" Value="#16A085"/>
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                        <Setter Property="Command" Value="{Binding DataContext.AddMemberToGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                                        <Setter Property="CommandParameter" Value="{Binding Email}"/>
+                                                        <Setter Property="Cursor" Value="Hand"/>
+                                                    </MultiDataTrigger>
+
+                                                    <!-- 4. ZUSTAND: Der Benutzer ist bereits Mitglied in dieser Gruppe -->
+                                                    <DataTrigger Binding="{Binding IsAlreadyInGroup}" Value="True">
+                                                        <Setter Property="Content" Value="✓ Mitglied"/>
+                                                        <Setter Property="Background" Value="#95A5A6"/>
+                                                        <Setter Property="Foreground" Value="#7F8C8D"/>
+                                                        <Setter Property="Command" Value="{x:Null}"/>
+                                                        <Setter Property="Cursor" Value="Arrow"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- ==================== EIGENE PROFIL-INFO (Ganz unten) ==================== -->
+                <Border Grid.Row="4" BorderBrush="#34495E" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                    <Button Command="{Binding ToggleProfileViewCommand}" Background="Transparent" BorderThickness="0" Cursor="Hand" HorizontalContentAlignment="Stretch">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Grid Grid.Column="0">
+                                <Ellipse Width="35" Height="35" Fill="#3498DB"/>
+                                <TextBlock Text="{Binding MyInitials}" Foreground="White" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                <Ellipse Width="35" Height="35">
+                                    <Ellipse.Fill>
+                                        <ImageBrush ImageSource="{Binding MyAvatarImage}"/>
+                                    </Ellipse.Fill>
+                                </Ellipse>
+                            </Grid>
+
+                            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSidebarMaximized}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="{Binding MyDisplayName}" Foreground="White" FontWeight="Bold"/>
+                                <TextBlock Text="Profil bearbeiten ⚙️" Foreground="#95A5A6" FontSize="11"/>
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                </Border>
+
+            </Grid>
+        </Border>
+
+        <!-- ==================== RECHTER BEREICH: HAUPTINHALT ==================== -->
+        <Grid Grid.Column="1" Margin="15">
+
+            <!-- ANSICHT 1: AKTIVER CHAT-VERLAUF -->
+            <Grid>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <!-- Schaltet die Chat-Ansicht auf unsichtbar, wenn das Profil geöffnet ist -->
+                            <DataTrigger Binding="{Binding IsProfileViewActive}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <!-- Statusleiste -->
+                    <RowDefinition Height="*"/>
+                    <!-- Nachrichten-Verlauf -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Eingabefeld -->
+                </Grid.RowDefinitions>
+
+                <!-- Status-Leiste (Absolut ausfallsicher via C#-Flag gesteuert) -->
+                <Border Grid.Row="0" Background="White" CornerRadius="5" Padding="10" Margin="0,0,0,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <!-- Spalte 0: Titel-Texte -->
+                            <ColumnDefinition Width="Auto"/>
+                            <!-- Spalte 1: 📞 Unterstüzung Anruf-Button -->
+                            <ColumnDefinition Width="Auto"/>
+                            <!-- Spalte 2: Krypto-Hinweis -->
+                            <ColumnDefinition Width="Auto"/>
+                            <!-- Spalte 3: Der Einladungs-Button -->
+                        </Grid.ColumnDefinitions>
+
+                        <!-- LINKER BEREICH: TITEL (Zeigt den Namen des Freundes oder der Gruppe an) -->
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <!-- 🌟 KORREKTUR: Die fehlerhafte Style-Zeile wurde restlos gelöscht! -->
+
+                            <!-- Wenn eine Gruppe aktiv ist, zeigen wir den Gruppennamen -->
+                            <TextBlock FontSize="14" FontWeight="Bold" Foreground="#2C3E50">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{Binding SelectedContact.DisplayName}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGroupChatActive}" Value="True">
+                                                <Setter Property="Text" Value="{Binding SelectedGroup.GroupName}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <!-- Untertitel (E-Mail oder Gruppen-ID) -->
+                            <TextBlock FontSize="11" Foreground="#7F8C8D">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{Binding SelectedContact.Email}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGroupChatActive}" Value="True">
+                                                <Setter Property="Text" Value="Sicherer Gruppenkanal"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!-- 📞 SPALTE 1: DER KRYPTO-TELEFONIE-BUTTON IM HEADER -->
+                        <!--<Button Grid.Column="1"
+                        Command="{Binding StartVoiceCallCommand}"
+                        Width="34" 
+                        Height="34" 
+                        Margin="0,0,15,0"
+                        Background="Transparent" 
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        VerticalAlignment="Center"
+                        ToolTip="Verschlüsselten Sprachanruf starten">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        --><!-- Er leuchtet NUR auf, wenn ein 1:1-Chat aktiv ist (IsGroupChatActive = False) --><!--
+                                        <DataTrigger Binding="{Binding IsGroupChatActive}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <Grid>
+                                <Ellipse Fill="#2ECC71" Width="30" Height="30"/>
+                                --><!-- Schönes Krypto-Grün --><!--
+                                <TextBlock Text="📞" 
+                                   Foreground="White" 
+                                   FontSize="14" 
+                                   HorizontalAlignment="Center" 
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,0,1"/>
+                            </Grid>
+                        </Button>-->
+
+                        <!-- 📞 DER DYNAMISCHE KRYPTO-ANRUF-BUTTON -->
+                        <Button Grid.Column="1"
+                            Width="34" Height="34" Margin="0,0,15,0"
+                            BorderThickness="0" Cursor="Hand" VerticalAlignment="Center">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <!-- Standard: Grüner Hörer zum Anrufen -->
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Command" Value="{Binding StartVoiceCallCommand}"/>
+                                    <Setter Property="ToolTip" Value="Verschlüsselten Sprachanruf starten"/>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <!-- Sichtbar im normalen 1:1-Chat -->
+                                        <DataTrigger Binding="{Binding IsGroupChatActive}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <!-- 🌟 LIVE-UMSCHALTUNG: Wenn wir anrufen, wird der Button ROT zum Abbrechen! -->
+                                        <DataTrigger Binding="{Binding IsOutgoingCallActive}" Value="True">
+                                            <Setter Property="Command" Value="{Binding CancelCallCommand}"/>
+                                            <!-- Binde an eine Methode/Command die CancelOrHangUpCall() aufruft -->
+                                            <Setter Property="ToolTip" Value="Anruf abbrechen / Auflegen"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Grid>
+                                                            <Ellipse Fill="#FF3B30" Width="30" Height="30"/>
+
+                                                            <!-- 🌟 DIE RETTUNG FÜR DIE OPTIK: Rotes Telefon-Emoji statt Kreuz 🛑 -->
+                                                            <TextBlock Text="📞" 
+                                                                Foreground="White" 
+                                                                FontSize="14" 
+                                                                HorizontalAlignment="Center" 
+                                                                VerticalAlignment="Center" 
+                                                                Margin="0,0,0,1"/>
+                                                        </Grid>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <Grid>
+                                <Ellipse Fill="#2ECC71" Width="30" Height="30"/>
+                                <TextBlock Text="📞" Foreground="White" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- RECHTER BEREICH: HINWEISE -->
+                        <TextBlock Grid.Column="2" Text="🔒 E2EE" Foreground="#16A085" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    </Grid>
+                </Border>
+
+                <!-- Nachrichten Verlauf mit modernen, dynamischen Textblasen -->
+                <!-- KORREKTUR: Scrollbalken ist standardmäßig unsichtbar und blendet sich nur bei Maus-Kontakt hauchdünn ein -->
+                <ListBox x:Name="ChatList" Grid.Row="1" ItemsSource="{Binding ChatHistory}" 
+                         Background="#F4F6F7" BorderThickness="0" Padding="5" Margin="0,0,0,10"
+                         HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Visible">
+                    <!-- KORREKT: Immer Platz reservieren! -->
+                    <ListBox.Resources>
+                        <Style TargetType="{x:Type ScrollBar}">
+                            <!-- STANDARD-ZUSTAND: Der Balken nimmt Platz ein, ist aber komplett unsichtbar (Opacity=0) -->
+                            <Setter Property="Opacity" Value="0.0"/>
+                            <Setter Property="Width" Value="8"/>
+                            <!-- Etwas breiter für leichteres Treffen (8px) -->
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                        <Grid x:Name="Bg" Background="Transparent">
+                                            <Track x:Name="PART_Track" IsDirectionReversed="true" IsEnabled="{TemplateBinding IsEnabled}">
+                                                <Track.Thumb>
+                                                    <Thumb>
+                                                        <Thumb.Template>
+                                                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                                                <Border Background="#BDC3C7" CornerRadius="4" BorderThickness="0"/>
+                                                            </ControlTemplate>
+                                                        </Thumb.Template>
+                                                    </Thumb>
+                                                </Track.Thumb>
+                                            </Track>
+                                        </Grid>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+
+                            <!-- TRIGGER INNERHALB DER SCROLLBAR -->
+                            <Style.Triggers>
+                                <!-- Sobald sich die Maus über der ListBox befindet, blenden wir den Balken weich ein -->
+                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBox}}" Value="True">
+                                    <Setter Property="Opacity" Value="1.0"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Resources>
+
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
+                            <!-- Den alten Ruckel-Trigger löschen wir hier komplett raus, da die Scrollbar sich nun selbst steuert! -->
+                        </Style>
+                    </ListBox.Style>
+
+
+                    <!-- Das DataTemplate für die Textblasen bleibt hier unverändert drin -->
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <!-- Robustes Grid für die gesamte Zeile -->
+                            <Grid Margin="0,4,0,4" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <!-- Spalte 0: User-Icon -->
+                                    <ColumnDefinition Width="*"/>
+                                    <!-- Spalte 1: Krypto-Blase -->
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 1. USER-ICON (Links für den Partner) -->
+                                <Grid x:Name="UserIconGrid" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Bottom">
+                                    <Ellipse Width="28" Height="25" Fill="#95A5A6"/>
+                                    <TextBlock Text="👤" Foreground="White" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                </Grid>
+
+                                <!-- 2. DIE TEXTBLASE (Das Chamäleon-Element) -->
+                                <Border x:Name="MessageBorder" Grid.Column="1" CornerRadius="10" Padding="12,8,12,8" MaxWidth="450" HorizontalAlignment="Left" Background="White">
+                                    <StackPanel>
+                                        <!-- Absender-Name -->
+                                        <TextBlock x:Name="SenderNameTxt" Text="{Binding SenderEmail}" FontSize="10" FontWeight="Bold" Margin="0,0,0,4" Foreground="#16A085"/>
+
+                                        <!-- BLOCK A: KRYPTO-BILD -->
+                                        <Image x:Name="KryptoImage" Source="{Binding DecryptedImagePayload}" Width="240" Height="160" Stretch="Uniform" HorizontalAlignment="Left" Visibility="Collapsed" Margin="0,0,0,5"/>
+
+                                        <!-- BLOCK B: UNIVERSELLER INLINE-AUDIO-PLAYER -->
+                                        <Grid x:Name="KryptoAudioPlayer" Visibility="Collapsed" Margin="0,0,0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button Command="{Binding DataContext.ToggleAudioCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding ElementName=AudioStreamPlayer}"
+                                                    Content="{Binding PlayPauseIcon}" 
+                                                    Width="26" Height="26" Background="#16A085" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand">
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border Background="{TemplateBinding Background}" CornerRadius="13">
+                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" Width="200">
+                                                <Slider x:Name="AudioSlider" Style="{StaticResource ModernMediaSlider}" Height="18" Minimum="0" Maximum="100" Value="{Binding AudioProgressValue}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted"/>
+                                                <TextBlock Text="🎵 Sprachnachricht / E2EE-Stream" FontSize="9" Foreground="#7F8C8D" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                            <MediaElement x:Name="AudioStreamPlayer" Source="{Binding DecryptedFileBytes, Converter={StaticResource BytesToUriConverter}}" LoadedBehavior="Manual" UnloadedBehavior="Manual" MediaEnded="VideoCorePlayer_MediaEnded" Volume="1.0" Visibility="Collapsed"/>
+                                        </Grid>
+
+                                        <!-- BLOCK C: INLINE-VIDEO-PLAYER -->
+                                        <Border x:Name="KryptoVideoPlayer" MaxWidth="320" MaxHeight="220" Background="#1A1A1A" CornerRadius="8" Padding="5" Margin="0,0,0,5" HorizontalAlignment="Left" Visibility="Collapsed">
+                                            <Grid>
+                                                <MediaElement x:Name="VideoCorePlayer" Source="{Binding DecryptedFileBytes, Converter={StaticResource BytesToUriConverter}}" LoadedBehavior="Manual" UnloadedBehavior="Manual" MediaEnded="VideoCorePlayer_MediaEnded" Volume="0.5" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                <Grid VerticalAlignment="Bottom" Background="#B0000000">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0" Command="{Binding DataContext.ToggleAudioCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding ElementName=VideoCorePlayer}" Content="{Binding PlayPauseIcon}" Width="24" Height="24" Background="#16A085" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="8,4,4,4">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Template">
+                                                                    <Setter.Value>
+                                                                        <ControlTemplate TargetType="Button">
+                                                                            <Border Background="{TemplateBinding Background}" CornerRadius="12">
+                                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,0,0,0"/>
+                                                                            </Border>
+                                                                        </ControlTemplate>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <Slider x:Name="VideoSlider" Style="{StaticResource ModernMediaSlider}" Grid.Column="1" Height="18" Minimum="0" Maximum="100" Value="{Binding AudioProgressValue}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted" VerticalAlignment="Center" Margin="10,0,8,0"/>
+                                                </Grid>
+                                                <TextBlock Text="🎥" FontSize="14" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Opacity="0.7"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- BLOCK D: DER REINE NACHRICHTENTEXT (🌟 Bleibt bei YouTube-Links stehen!) -->
+                                        <!-- BLOCK D & F KOMBINIERT: TEXT MIT INTEGRATION DER HÄKCHEN -->
+                                        <!-- Ein Grid erlaubt es, dass die Häkchen elegant in die rechte untere Ecke wandern -->
+                                        <Grid Margin="0,2,0,0">
+                                            <!-- Der eigentliche Nachrichtentext -->
+                                            <TextBlock x:Name="MainMessageTxt" 
+                                                       Text="{Binding CipherText}" 
+                                                       FontSize="14" 
+                                                       TextWrapping="Wrap" 
+                                                       Foreground="#2C3E50"
+                                                       Margin="0,0,25,0"/>
+                                            <!-- 25 Pixel Platzhalter rechts für die Häkchen! -->
+
+                                            <!-- Die Live-Lesebestätigung (Häkchen) -->
+                                            <!-- 🌟 DIE PERFEKTE DATEI-HÄKCHEN-KORREKTUR: Sichtbarkeit bleibt geschützt, Farbe wird im Style erzwungen! -->
+                                            <TextBlock x:Name="StatusTicksTxt" 
+                                                Text="{Binding StatusIcon}" 
+                                                FontSize="11" 
+                                                FontWeight="Bold"
+                                                HorizontalAlignment="Right" 
+                                                VerticalAlignment="Bottom"
+                                                Margin="0,0,4,1">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <!-- Standardmäßig für alle Nachrichten unsichtbar machen -->
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+
+                                                        <!-- 🔵 DIE RETTUNG FÜR DATEIEN: Das Farb-Binding hart als Style-Property hinterlegen! -->
+                                                        <Setter Property="Foreground" Value="{Binding StatusColor}"/>
+
+                                                        <Style.Triggers>
+                                                            <!-- Garantiert die Sichtbarkeit NUR für deine eigenen gesendeten Nachrichten -->
+                                                            <DataTrigger Binding="{Binding IsSender}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                        </Grid>
+
+                                        <!-- BLOCK E: EMBEDDED YOUTUBE-PLAYER -->
+                                        <Border x:Name="KryptoYouTubePlayer" Width="320" Height="180" Background="Black" CornerRadius="8" Padding="0" Margin="0,8,0,0" HorizontalAlignment="Left" Visibility="Collapsed">
+                                            <!-- KORREKTUR: Wir nutzen das stabile Loaded-Event, wenn das Element auf den Bildschirm kommt -->
+                                            <wv2:WebView2 x:Name="YouTubeWebView" Loaded="YouTubeWebView_Loaded"/>
+                                        </Border>
+
+                                        <!-- BLOCK F: DIE LIVE-LESESPBESTÄTIGUNG (HÄKCHEN) -->
+                                        <!-- Positioniert sich elegant unten rechts in deiner Textblase -->
+                                        <!-- BLOCK F: DIE LIVE-LESESPBESTÄTIGUNG (KORREKTUR: Visibility sauber über Style definiert) -->
+                                        <!--<TextBlock x:Name="StatusTicksTxt" 
+                                            Text="{Binding StatusIcon}" 
+                                            Foreground="{Binding StatusColor}" 
+                                            FontSize="10" 
+                                            HorizontalAlignment="Right" 
+                                            VerticalAlignment="Bottom" 
+                                            Margin="0,2,2,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    --><!-- Standardmäßig für alle Nachrichten unsichtbar machen --><!--
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>-->
+
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- 🌟 DIE KRYPTO-WEICHE: Bereinigte Trigger-Steuerung auf Template-Ebene -->
+                            <DataTemplate.Triggers>
+                                <!-- SENDER-AUSRICHTUNG (Nachrichten von MIR fliegen nach rechts und werden blau) -->
+                                <DataTrigger Binding="{Binding IsSender}" Value="True">
+                                    <Setter TargetName="MessageBorder" Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter TargetName="MessageBorder" Property="Background" Value="#3498DB"/>
+                                    <Setter TargetName="MainMessageTxt" Property="Foreground" Value="White"/>
+                                    <Setter TargetName="SenderNameTxt" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="UserIconGrid" Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+
+                                <!-- SYSTEM-MELDUNGEN (Zentriert und grau) -->
+                                <DataTrigger Binding="{Binding SenderEmail}" Value="System">
+                                    <Setter TargetName="MessageBorder" Property="HorizontalAlignment" Value="Center"/>
+                                    <Setter TargetName="MessageBorder" Property="Background" Value="#E5E8E8"/>
+                                    <Setter TargetName="SenderNameTxt" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="UserIconGrid" Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+
+                                <!-- FALL BILD: Schaltet Text aus, Bild an -->
+                                <DataTrigger Binding="{Binding MessageType}" Value="Image">
+                                    <Setter TargetName="MainMessageTxt" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="KryptoImage" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+
+                                <!-- FALL AUDIO: Schaltet Text aus, Audio-Player an -->
+                                <DataTrigger Binding="{Binding MessageType}" Value="Audio">
+                                    <Setter TargetName="MainMessageTxt" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="KryptoAudioPlayer" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="MessageBorder" Property="Background" Value="#EAEDED"/>
+                                </DataTrigger>
+
+                                <!-- FALL VIDEO: Schaltet Text aus, Video-Player an -->
+                                <DataTrigger Binding="{Binding MessageType}" Value="Video">
+                                    <Setter TargetName="MainMessageTxt" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="KryptoVideoPlayer" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="MessageBorder" Property="Background" Value="#2C3E50"/>
+                                </DataTrigger>
+
+                                <!-- FALL YOUTUBE: Lässt den Text STEHEN, schaltet aber die Video-Kachel darunter AN und korrigiert die Textfarbe! -->
+                                <DataTrigger Binding="{Binding MessageType}" Value="YouTube">
+                                    <Setter TargetName="KryptoYouTubePlayer" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="MessageBorder" Property="Background" Value="#EAEDED"/>
+                                    <!-- Angenehmes Hellgrau -->
+                                    <!-- 🌟 KORREKTUR: Zwingt den Text auf ein lesbares Dunkelgrau, selbst wenn du der Sender bist! -->
+                                    <Setter TargetName="MainMessageTxt" Property="Foreground" Value="#2C3E50"/>
+                                </DataTrigger>
+
+                                <!-- Zeigt die Häkchen NUR an, wenn du der Sender der Nachricht bist! -->
+                                <DataTrigger Binding="{Binding IsSender}" Value="True">
+                                    <Setter TargetName="StatusTicksTxt" Property="Visibility" Value="Visible"/>
+                                    <!-- Bestehende Sender-Setter bleiben hier unberührt stehen -->
+                                    <Setter TargetName="MessageBorder" Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter TargetName="MessageBorder" Property="Background" Value="#3498DB"/>
+                                </DataTrigger>
+
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+
+                </ListBox>
+
+                <!-- 🌟 NEU: VISUELLES LADE-FEEDBACK (Teilt sich mit der ListBox die Grid.Row="1") -->
+                <!-- Legt sich vollautomatisch als halbtransparente Ebene darüber, wenn IsLoadingHistory=True ist -->
+                <Border Grid.Row="1" 
+                    Background="#A0F4F6F7" 
+                    CornerRadius="0" 
+                    Margin="0,0,0,10"
+                    Visibility="{Binding IsLoadingHistory, Converter={StaticResource BoolToVis}}">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <!-- Ein schicker, unendlicher Windows-Fortschrittsbalken als Spinner -->
+                        <ProgressBar IsIndeterminate="True" Width="50" Height="10" Background="#BDC3C7" Foreground="#16A085"/>
+                        <TextBlock Text="Dechiffriere Krypto-Kanal... 🔒" 
+                           Foreground="#2C3E50" FontWeight="Bold" FontSize="14"
+                           Margin="0,15,0,0" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Eingabefeld & Senden -->
+                <!-- Eingabe-Leiste (Erweitert um den Büroklammer-Button 📎) -->
+                <Grid Grid.Row="2" Margin="0,5,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- Spalte 0: Büroklammer -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- Spalte 1: Text-Eingabe -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- Spalte 2: Senden-Knopf -->
+                    </Grid.ColumnDefinitions>
+
+                    <!-- NEU: BÜROKLAMMER-BUTTON FÜR KRYPTO-PAYLOADS -->
+                    <Button Grid.Column="0" 
+                            Command="{Binding AttachFileCommand}" 
+                            Content="📎" 
+                            Width="35" Height="35" 
+                            Background="#BDC3C7" 
+                            Foreground="#2C3E50" 
+                            FontSize="16" 
+                            BorderThickness="0" 
+                            Margin="0,0,5,0" 
+                            Cursor="Hand"
+                            ToolTip="Bild oder Datei krypto-sicher anhängen"/>
+
+                    <!-- Dein bestehendes Textfeld rutscht in Spalte 1 -->
+                    <TextBox Grid.Column="1" 
+                             Text="{Binding MessageText, UpdateSourceTrigger=PropertyChanged}" 
+                             Height="35" 
+                             VerticalContentAlignment="Center" 
+                             Padding="10,0,10,0" 
+                             FontSize="14"/>
+
+                    <!-- Dein Senden-Button rutscht in Spalte 2 -->
+                    <Button Grid.Column="2" 
+                            Command="{Binding SendCommand}" 
+                            Content="Senden 🚀" 
+                            IsDefault="True" 
+                            Width="85" Height="35" 
+                            Background="#2ECC71" 
+                            Foreground="White" 
+                            FontWeight="Bold" 
+                            BorderThickness="0" 
+                            Margin="5,0,0,0" 
+                            Cursor="Hand"/>
+                </Grid>
+            </Grid>
+
+            <!-- ANSICHT 2: EIGENE PROFIL- UND SYSTEM-EINSTELLUNGEN -->
+            <Grid>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsProfileViewActive}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+
+                <Border Background="White" CornerRadius="8" Padding="25" BorderBrush="#CFD8DC" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <!-- Titel-Leiste -->
+                            <RowDefinition Height="*"/>
+                            <!-- Einstellungs-Inhalt -->
+                            <RowDefinition Height="Auto"/>
+                            <!-- Fuß-Aktionstasten -->
+                        </Grid.RowDefinitions>
+
+                        <!-- Titel -->
+                        <TextBlock Grid.Row="0" Text="⚙️ Einstellungen &amp; Sicherheit" FontSize="20" FontWeight="Bold" Foreground="#2C3E50" Margin="0,0,0,20"/>
+
+                        <!-- Zweigeteilter Inhalt -->
+                        <Grid Grid.Row="1" Margin="0,0,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <!-- Linke Spalte: Profil -->
+                                <ColumnDefinition Width="20"/>
+                                <!-- Trennungs-Abstand -->
+                                <ColumnDefinition Width="*"/>
+                                <!-- Rechte Spalte: Funktionen -->
+                            </Grid.ColumnDefinitions>
+
+                            <!-- LINKE SPALTE: PROFIL BEARBEITEN -->
+                            <StackPanel Grid.Column="0" VerticalAlignment="Top">
+                                <TextBlock Text="PROFIL DETAILS" FontSize="12" FontWeight="Bold" Foreground="#7F8C8D" Margin="0,0,0,15"/>
+
+                                <!-- Großer Avatar -->
+                                <Grid HorizontalAlignment="Center" Margin="0,0,0,15">
+                                    <Ellipse Width="100" Height="100" Fill="#3498DB"/>
+                                    <TextBlock Text="{Binding MyInitials}" Foreground="White" FontSize="32" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    <Ellipse Width="100" Height="100" Stroke="#CFD8DC" StrokeThickness="2">
+                                        <Ellipse.Fill>
+                                            <ImageBrush ImageSource="{Binding MyAvatarImage}" Stretch="UniformToFill"/>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+                                </Grid>
+
+                                <Button Content="Avatar-Bild ändern 📷" Command="{Binding UploadAvatarCommand}" Height="30" Margin="0,0,0,15" Background="#ECEFF1" BorderBrush="#B0BEC5"/>
+
+                                <TextBlock Text="Anzeigename:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding MyDisplayName, UpdateSourceTrigger=PropertyChanged}" Height="30" VerticalContentAlignment="Center" Padding="5"/>
+                            </StackPanel>
+
+                            <!-- RECHTE SPALTE: DATA MANAGEMENT & PRIVACY -->
+                            <StackPanel Grid.Column="2" VerticalAlignment="Top">
+                                <TextBlock Text="DATENSCHUTZ &amp; CHAT VERWALTUNG" FontSize="12" FontWeight="Bold" Foreground="#7F8C8D" Margin="0,0,0,15"/>
+
+                                <!-- Funktion A: Verlauf leeren -->
+                                <TextBlock Text="Lokale Daten:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                                <Button Command="{Binding DeleteChatHistoryCommand}" Content="🗑️ Aktuellen Chat-Verlauf löschen" Height="35" Background="#FADBD8" Foreground="#C0392B" FontWeight="SemiBold" BorderBrush="#E6B0AA" HorizontalAlignment="Stretch" Margin="0,0,0,15" Cursor="Hand"/>
+
+                                <!-- Funktion B: Krypto-Schlüssel erneuern -->
+                                <TextBlock Text="Sicherheitsschlüssel (E2EE):" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                                <Button Command="{Binding RotateKeysCommand}" Content="🔑 RSA-Schlüsselpaar neu generieren" Height="35" Background="#FCF3CF" Foreground="#B7950B" FontWeight="SemiBold" BorderBrush="#F9E79F" HorizontalAlignment="Stretch" Margin="0,0,0,10" Cursor="Hand"/>
+                                <TextBlock Text="Hinweis: Ein neues Schlüsselpaar ungültigt alte, im SQL Server gelagerte Nachrichten!" FontSize="11" Foreground="#7F8C8D" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- FUSSZEILE: AKTIONSTASTEN (Zentriert am unteren Rand) -->
+                        <Grid Grid.Row="2" HorizontalAlignment="Right" Width="250">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Command="{Binding ToggleProfileViewCommand}" CommandParameter="Save" Content="Speichern ✓" Height="35" Margin="0,0,10,0" Background="#2ECC71" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
+                            <Button Grid.Column="1" Command="{Binding ToggleProfileViewCommand}" CommandParameter="Cancel" Content="Schließen" Height="35" Background="#E74C3C" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
+                        </Grid>
+
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- 🌟 ELEGANTES IN-APP ANRUF-OVERLAY -->
+            <Grid Grid.RowSpan="3" Background="#AA000000">
+                <!-- Dunkler, edler Glas-Effekt -->
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <!-- Blendet sich vollautomatisch ein, wenn IsIncomingCallActive im RAM auf True springt! -->
+                            <DataTrigger Binding="{Binding IsIncomingCallActive}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+
+                <Border BorderBrush="#16A085" BorderThickness="1" Background="#2C3E50" CornerRadius="15" 
+                    Width="320" Height="180" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid Margin="20">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="📞 EINGEHENDER ANRUF" Foreground="#2ECC71" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+                        <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,10">
+                            <TextBlock Text="{Binding CurrentCallPartner}" Foreground="White" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="Ende-zu-Ende verschlüsselt" Foreground="#BDC3C7" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <!-- Die beiden modernisierten Tasten zum Annehmen oder Ablehnen -->
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ABLEHNEN (ROT) -->
+                            <Button Grid.Column="0" Content="Ablehnen" Background="#FF3B30" Foreground="White" FontWeight="Bold"
+                        Height="32" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                        Command="{Binding CancelCallCommand}">
+                                <!-- Ruft im Hintergrund CancelOrHangUpCall() auf -->
+                                <Button.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="5"/>
+                                    </Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <!-- ANNEHMEN (GRÜN) -->
+                            <Button Grid.Column="1" Content="Annehmen" Background="#4CD964" Foreground="White" FontWeight="Bold"
+                        Height="32" Margin="10,0,0,0" BorderThickness="0" Cursor="Hand"
+                        Command="{Binding AcceptCallCommand}">
+                                <!-- Neues Command, das dein AcceptVoiceCallAsync aufruft -->
+                                <Button.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="5"/>
+                                    </Style>
+                                </Button.Resources>
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+        </Grid>
+    </Grid>
+</Window>
+
