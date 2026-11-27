@@ -1,0 +1,27 @@
+name: SecureChat CI Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-all:
+    # Wir nutzen einen Windows-Server, da unser WPF-Client das Windows 10 SDK benötigt
+    runs-on: windows-latest
+
+    steps:
+    - name: 1. Code auschecken
+      uses: actions/checkout@v4
+
+    - name: 2. .NET 8 SDK einrichten
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: 3. Pakete wiederherstellen (Restore)
+      run: dotnet restore SecureChat.slnx
+
+    - name: 4. Gesamte Solution kompilieren (Backend & WPF-Client)
+      run: dotnet build SecureChat.slnx --configuration Release --no-restore

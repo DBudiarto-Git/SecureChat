@@ -33,34 +33,41 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
-        // SECURITY: Schnelle Vorab-Prüfung, ob die E-Mail schon existiert
-        var existingUser = await _userManager.FindByEmailAsync(dto.Email);
-        if (existingUser != null)
-            return BadRequest(new { Message = "Diese E-Mail-Adresse wird bereits verwendet." });
-
-        // 1. Identity-User anlegen (Identity verwaltet diese Transaktion selbst!)
-        var user = new IdentityUser { UserName = dto.Email, Email = dto.Email };
-        var result = await _userManager.CreateAsync(user, dto.Password);
-
-        if (!result.Succeeded)
-            return BadRequest(result.Errors); // Gibt Passwort-Richtlinien-Fehler direkt an WPF zurück
-
-        // 2. Rolle zuweisen (Läuft jetzt ohne Blockade durch)
-        var roleResult = await _userManager.AddToRoleAsync(user, "User");
-        if (!roleResult.Succeeded)
-            return BadRequest(roleResult.Errors);
-
-        // 3. Dein eigenes Benutzerprofil in der UserProfiles-Tabelle anlegen
-        var profile = new UserProfile
+        try
         {
-            Id = user.Id,
-            DisplayName = dto.DisplayName,
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true
-        };
+            // SECURITY: Schnelle Vorab-Prüfung, ob die E-Mail schon existiert
+            var existingUser = await _userManager.FindByEmailAsync(dto.Email);
+            if (existingUser != null)
+                return BadRequest(new { Message = "Diese E-Mail-Adresse wird bereits verwendet." });
 
-        _context.UserProfiles.Add(profile);
-        await _context.SaveChangesAsync(); // Schreibt das Profil sicher in den SQL Server
+            // 1. Identity-User anlegen (Identity verwaltet diese Transaktion selbst!)
+            var user = new IdentityUser { UserName = dto.Email, Email = dto.Email };
+            var result = await _userManager.CreateAsync(user, dto.Password);
+
+            if (!result.Succeeded)
+                return BadRequest(result.Errors); // Gibt Passwort-Richtlinien-Fehler direkt an WPF zurück
+
+            // 2. Rolle zuweisen (Läuft jetzt ohne Blockade durch)
+            var roleResult = await _userManager.AddToRoleAsync(user, "User");
+            if (!roleResult.Succeeded)
+                return BadRequest(roleResult.Errors);
+
+            // 3. Dein eigenes Benutzerprofil in der UserProfiles-Tabelle anlegen
+            var profile = new UserProfile
+            {
+                Id = user.Id,
+                DisplayName = dto.DisplayName,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            _context.UserProfiles.Add(profile);
+            await _context.SaveChangesAsync(); // Schreibt das Profil sicher in den SQL Server
+        }
+        catch (Exception ex)
+        {
+            var test = "test" + ex.Message;
+        }
 
         return Ok(new { Message = "Benutzer und Profil erfolgreich registriert!" });
     }

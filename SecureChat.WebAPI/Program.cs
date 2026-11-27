@@ -74,4 +74,26 @@ app.UseAuthorization();  // 2. Was darfst du?
 app.MapControllers();
 app.MapHub<ChatHub>("/chathub");
 
+// 🌟 AUTOMATISCHE DATENBANK-MIGRATION: Läuft NUR, wenn das Docker-Flag gesetzt ist!
+var runMigrations = apiServerBuilder.Configuration["RUN_MIGRATIONS"] == "true";
+
+if (runMigrations)
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var services = scope.ServiceProvider;
+        try
+        {
+            var context = services.GetRequiredService<ApplicationDbContext>();
+            context.Database.Migrate();
+            Console.WriteLine("[Docker-DB] Migration erfolgreich ausgeführt.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Docker-DB-Fehler] {ex.Message}");
+        }
+    }
+}
+
+
 app.Run();

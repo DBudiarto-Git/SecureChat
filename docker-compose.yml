@@ -1,0 +1,38 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: securechat-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    networks:
+      - securechat-net
+
+  webapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: securechat-api
+    depends_on:
+      - sqlserver
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_HTTP_PORTS=8080
+      - RUN_MIGRATIONS=true
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=SecureChatDb;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__Secret=${JWT_SECRET}
+    networks:
+      - securechat-net
+
+volumes:
+  sqldata:
+
+networks:
+  securechat-net:
+
